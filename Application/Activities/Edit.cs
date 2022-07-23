@@ -3,6 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Threading;
 using System.Threading.Tasks;
+using Application.Core;
 using AutoMapper;
 using Domain;
 using FluentValidation;
@@ -13,7 +14,7 @@ namespace Application.Activities
 {
     public class Edit
     {
-        public class Command : IRequest
+        public class Command : IRequest<Result<Unit>>
         {
             public Activity Activity { get; set; }
         }
@@ -24,7 +25,7 @@ namespace Application.Activities
                 RuleFor(x => x.Activity).SetValidator(new ActivityValidator());
             }
         }
-        public class Handler : IRequestHandler<Command>
+        public class Handler : IRequestHandler<Command, Result<Unit>>
         {
             private readonly DataContext _conetxt;
             private readonly IMapper _mapper;
@@ -35,12 +36,14 @@ namespace Application.Activities
                 _mapper = mapper;
             }
 
-            public async Task<Unit> Handle(Command request, CancellationToken cancellationToken)
+            public async Task<Result<Unit>> Handle(Command request, CancellationToken cancellationToken)
             {
                 var activity = await _conetxt.Activities.FindAsync(request.Activity.Id);
+                if (activity == null) return null;
                 _mapper.Map(request.Activity, activity);
-                await _conetxt.SaveChangesAsync();
-                return Unit.Value;
+                var result = await _conetxt.SaveChangesAsync() > 0;
+                if (!result) return Result<Unit>.Failure("Failed to Edit Activity");
+                return Result<Unit>.Success(Unit.Value);
 
             }
         }
